@@ -10,6 +10,7 @@ from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.layers import *
 from tensorflow.keras.optimizers import Adam
+from sagemaker_tensorflow import PipeModeDataset
 
 import argparse
 import os
@@ -23,8 +24,9 @@ NUM_CLASSES = 2
 
 
 # # ----- Data pipline -----
-def read_tf_dataset(tfrecords_pattern_path, batch_size, shuffle):
-
+#def read_tf_dataset(tfrecords_pattern_path, batch_size, shuffle):
+def read_tf_dataset(channel_name, batch_size):
+    
     # ----- Function to import the TFRecords -----
     def read_tfrecords(files):
          return tf.data.TFRecordDataset(files, compression_type="GZIP")
@@ -75,19 +77,21 @@ def read_tf_dataset(tfrecords_pattern_path, batch_size, shuffle):
         return img_array, mask
 
 
-    # ----- Main function of TFRecords data pipeline -----
-    files = tf.data.Dataset.list_files(tfrecords_pattern_path)
-    dataset = files.interleave(read_tfrecords, cycle_length=tf.data.AUTOTUNE, num_parallel_calls=tf.data.AUTOTUNE)
+    # # ----- Main function of TFRecords data pipeline -----
+    #files = tf.data.Dataset.list_files(tfrecords_pattern_path)
+    #dataset = files.interleave(read_tfrecords, cycle_length=tf.data.AUTOTUNE, num_parallel_calls=tf.data.AUTOTUNE)
 
-    # Print to make sure the number of data is correct
-    # Each shard has 78 data
-    num_elements = 0
-    for _ in dataset:
-        num_elements = num_elements + 1
-    print(num_elements)
+    # # Print to make sure the number of data is correct
+    # # Each shard has 78 data
+    #num_elements = 0
+    #for _ in dataset:
+    #    num_elements = num_elements + 1
+    #print(num_elements)
+
+    dataset = PipeModeDataset(channel=channel_name, record_format='TFRecord')
 
     # Validation and test sets do not need to be shuffled.
-    if shuffle:
+    if not channel_name=='eval' :
         # Ideally, buffer_size should be the same as data size.
         # But it depends on the size of data and the available RAM.
         dataset = dataset.shuffle(buffer_size=100)
@@ -325,9 +329,13 @@ def main(args):
     validation_dir = args.validation
     eval_dir       = args.eval
 
-    train_dataset = read_tf_dataset(training_dir+'/train_*-of-*.tfrecords', batch_size=batch_size, shuffle=True)
-    val_dataset = read_tf_dataset(validation_dir+'/val_*-of-*.tfrecords', batch_size=batch_size, shuffle=False)
-    eval_dataset = read_tf_dataset(eval_dir+'/test_*-of-*.tfrecords', batch_size=batch_size, shuffle=False)
+    #train_dataset = read_tf_dataset(training_dir+'/train_*-of-*.tfrecords', batch_size=batch_size, shuffle=True)
+    #val_dataset = read_tf_dataset(validation_dir+'/val_*-of-*.tfrecords', batch_size=batch_size, shuffle=False)
+    #eval_dataset = read_tf_dataset(eval_dir+'/test_*-of-*.tfrecords', batch_size=batch_size, shuffle=False)
+
+    train_dataset = read_tf_dataset(training_dir, batch_size=batch_size)
+    val_dataset = read_tf_dataset(validation_dir, batch_size=batch_size)
+    eval_dataset = read_tf_dataset(eval_dir, batch_size=batch_size)
 
     # Get the model
     resunet_a = ResUnet(NUM_CLASSES, (HEIGHT, WIDTH, DEPTH)) #, args.layer_norm)
